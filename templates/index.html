@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MedBot — Medical Q&A Assistant</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <main class="card">
+    <header>
+      <h1>🩺 MedBot</h1>
+      <p class="subtitle">
+        Fine-tuned GPT-NeoX-20B (QLoRA) on the
+        <em>medical_meadow_wikidoc_patient_information</em> dataset
+      </p>
+      {% if mock %}
+      <p class="mock-banner">Running in MOCK mode (no GPU) — answers are placeholders.</p>
+      {% endif %}
+    </header>
+
+    <div id="chat" class="chat" aria-live="polite">
+      <div class="msg bot">
+        Hi! Ask me a general medical question, e.g.
+        “What are the symptoms of anemia?”
+      </div>
+    </div>
+
+    <form id="form" class="input-row" autocomplete="off">
+      <input id="question" type="text" maxlength="500"
+             placeholder="Type your medical question…" required />
+      <button id="send" type="submit">Ask</button>
+    </form>
+
+    <footer class="disclaimer">
+      ⚠️ MedBot gives <strong>general information only</strong> and is not a
+      substitute for professional medical advice, diagnosis, or treatment.
+      In an emergency, call your local emergency number.
+    </footer>
+  </main>
+
+  <script>
+    const chat = document.getElementById("chat");
+    const form = document.getElementById("form");
+    const input = document.getElementById("question");
+    const send = document.getElementById("send");
+
+    function addMsg(text, cls) {
+      const div = document.createElement("div");
+      div.className = "msg " + cls;
+      div.textContent = text;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+      return div;
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const q = input.value.trim();
+      if (!q) return;
+
+      addMsg(q, "user");
+      input.value = "";
+      send.disabled = true;
+      const thinking = addMsg("Thinking…", "bot pending");
+
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: q }),
+        });
+        const data = await res.json();
+        thinking.remove();
+
+        if (!res.ok) {
+          addMsg(data.error || "Something went wrong.", "bot error");
+        } else {
+          if (data.warning) addMsg(data.warning, "bot warning");
+          addMsg(data.answer, "bot");
+        }
+      } catch (err) {
+        thinking.remove();
+        addMsg("Network error — please try again.", "bot error");
+      } finally {
+        send.disabled = false;
+        input.focus();
+      }
+    });
+  </script>
+</body>
+</html>
